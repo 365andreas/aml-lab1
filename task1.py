@@ -3,16 +3,17 @@ import sys
 import numpy
 
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import cross_validate
-from statistics import mean
+from sklearn.linear_model import Ridge
+from sklearn.metrics import make_scorer, r2_score
+from sklearn.model_selection import GridSearchCV, cross_validate
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import MinMaxScaler
-
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2
-
 from sklearn.svm import SVC
 from sklearn.feature_selection import RFE
+from statistics import mean
+
 
 numpy.set_printoptions(threshold=sys.maxsize)
 
@@ -79,14 +80,31 @@ print(x_train)
 
 
 # TODO: try various regressors
+# SVR
+# Lasso
+# Ridge
 # TODO: CV to tune parameters
-reg = LinearRegression().fit(x_train, y_train)
+param_grid = [
+    {'alpha': [1e-3, 1e-2, 1e-1, 1, 10]},
+    # {'C': [1, 10, 100, 1000], 'gamma': [0.001, 0.0001], 'kernel': ['rbf']},
+]
+
+gs = GridSearchCV(Ridge(),
+                  param_grid=param_grid,
+                  scoring=make_scorer(r2_score),
+                  cv=10,
+                  n_jobs=-1, refit=True, return_train_score=True)
+gs.fit(x_train, y_train)
+results = gs.cv_results_
+reg = gs.best_estimator_
+
+# reg = LinearRegression().fit(x_train, y_train)
 print(reg.score(x_train, y_train))
 
 # score = R2 score
-#cv_results = cross_validate(reg, x_train, y_train, cv=10)
+# cv_results = cross_validate(reg, x_train, y_train, cv=10)
 # print(sorted(cv_results.keys()))
-#print(cv_results['test_score'] )
+# print(cv_results['test_score'] )
 # print(mean(cv_results['test_score']))
 
 ###################################################################################
