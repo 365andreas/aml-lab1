@@ -31,7 +31,6 @@ x_train = x_train.fillna(x_train.mean())
 
 test_set = pd.read_csv("X_test.csv")
 x_test = test_set.drop('id', axis=1)
-x_test = x_test.fillna(x_test.mean())
 
 # Outliers detection
 
@@ -121,6 +120,7 @@ print(mean(cv_results['test_score']))
 # TEST
 
 # missing values
+# TODO missing values of x_test must be filled with the corresponding values of x_train !!!
 x_test = x_test.fillna(x_test.mean())
 # scaling
 x_test_scaled = scaler.fit_transform(x_test)
