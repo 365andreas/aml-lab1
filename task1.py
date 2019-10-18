@@ -27,7 +27,8 @@ x_train = x_train.drop('id', axis=1)
 
 # TODO: Experiment with other replacement techniques
 # TODO: Maybe compute mean after splitting to validation and training set
-x_train = x_train.fillna(x_train.mean())
+filler = x_train.mean()
+x_train = x_train.fillna(filler)
 
 test_set = pd.read_csv("X_test.csv")
 x_test = test_set.drop('id', axis=1)
@@ -121,7 +122,7 @@ print(mean(cv_results['test_score']))
 
 # missing values
 # TODO missing values of x_test must be filled with the corresponding values of x_train !!!
-x_test = x_test.fillna(x_test.mean())
+x_test = x_test.fillna(filler)
 # scaling
 x_test_scaled = scaler.fit_transform(x_test)
 cols = list(x_test.columns.values)
