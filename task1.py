@@ -7,7 +7,7 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import make_scorer, r2_score
 from sklearn.model_selection import GridSearchCV, cross_validate
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2, f_regression
 from sklearn.svm import SVC
@@ -53,15 +53,16 @@ y_train = y_train.drop('is_outlier', axis=1)
 
 # Scaling
 
-scaler = MinMaxScaler()
+# scaler = MinMaxScaler()
+scaler = StandardScaler()
 x_train_new = scaler.fit_transform(x_train)
 cols = list(x_train.columns.values)
 x_train = pd.DataFrame(data=x_train_new, columns=cols)
 
 # Feature selection
 
-feature_selector = SelectKBest(chi2, k=200)
-# feature_selector = SelectKBest(f_regression, k=200)
+# feature_selector = SelectKBest(chi2, k=200)
+feature_selector = SelectKBest(f_regression, k=200)
 # svc = SVC(kernel="linear", C=1)
 # feature_selector = RFE(estimator=svc,
 #                        n_features_to_select=200, step=1, verbose=3)
@@ -80,8 +81,11 @@ for bool, feature in zip(mask, cols):
         new_features.append(feature)
 
 x_train = pd.DataFrame(data=x_train_sel, columns=new_features)
-print(x_train)
+# print(x_train)
 
+print(new_features)
+print("new_features size:")
+print(len(new_features))
 
 # TODO: try various regressors
 # SVR
@@ -107,9 +111,11 @@ print(reg.score(x_train, y_train))
 
 # score = R2 score
 cv_results = cross_validate(reg, x_train, y_train, cv=10)
-print(sorted(cv_results.keys()))
+# print(sorted(cv_results.keys()))
+print("cross_validation scores:")
 print(cv_results['test_score'])
-# print(mean(cv_results['test_score']))
+print("mean of CV scores:")
+print(mean(cv_results['test_score']))
 
 ###################################################################################
 # TEST
