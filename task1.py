@@ -60,13 +60,16 @@ x_train = pd.DataFrame(data=x_train_new, columns=cols)
 
 # Feature selection
 
-# feature_selector = SelectKBest(chi2, k=200)
+feature_selector = SelectKBest(chi2, k=200)
 # feature_selector = SelectKBest(f_regression, k=200)
-svc = SVC(kernel="linear", C=1)
-feature_selector = RFE(estimator=svc,
-                       n_features_to_select=200, step=10)
+# svc = SVC(kernel="linear", C=1)
+# feature_selector = RFE(estimator=svc,
+#                        n_features_to_select=200, step=1, verbose=3)
 # feature_selector = RFECV(estimator=svc,
-#                          min_features_to_select=20, cv=10, step=1, n_jobs=3)
+#                          min_features_to_select=20,
+#                          cv=10,
+#                          step=1,
+#                          n_jobs=3, verbose=3)
 
 x_train_sel = feature_selector.fit_transform(x_train, y_train)
 mask = feature_selector.get_support()  # list of booleans
