@@ -8,6 +8,7 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import make_scorer, r2_score
 from sklearn.model_selection import GridSearchCV, cross_validate
 from sklearn.ensemble import IsolationForest
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2, f_regression, mutual_info_regression
@@ -31,10 +32,11 @@ x_train = x_train.drop('id', axis=1)
 # 1. Missing Values
 # mean
 # median
-# (most_frequent)?
+# most_frequent
 # TODO: Maybe compute mean after splitting to validation and training set
-filler = x_train.median()
-x_train = x_train.fillna(filler)
+imputer = SimpleImputer(missing_values=numpy.nan, strategy='most_frequent', verbose=2)
+x_train_filled = imputer.fit_transform(x_train)
+x_train = pd.DataFrame(x_train_filled)
 
 # 2. Outliers detection
 
@@ -113,7 +115,7 @@ for n in range(10, 11, 10):  # for select KBest
     print(gs.best_params_)
     reg = gs.best_estimator_
     '''
-    reg = LassoCV(eps=0.00001, n_alphas=10000, normalize=False, max_iter=10000, tol=0.0001, cv=10, verbose=2,
+    reg = LassoCV(eps=0.001, n_alphas=100, normalize=False, max_iter=1000, tol=0.0001, cv=10, verbose=2,
                   n_jobs=12, positive=False, selection='cyclic').fit(x_train, y_train)
     print(reg.score(x_train, y_train))
 
@@ -135,8 +137,8 @@ print(cv_score_list)
 test_set = pd.read_csv("X_test.csv")
 x_test = test_set.drop('id', axis=1)
 # missing values
-# TODO missing values of x_test must be filled with the corresponding values of x_train !!!
-x_test = x_test.fillna(filler)
+x_test_filled = imputer.transform(x_test)
+x_test = pd.DataFrame(x_test_filled)
 # scaling
 x_test_scaled = scaler.fit_transform(x_test)
 cols = list(x_test.columns.values)
