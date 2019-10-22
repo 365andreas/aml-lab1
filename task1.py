@@ -11,8 +11,8 @@ from sklearn.model_selection import GridSearchCV, cross_validate
 from sklearn.ensemble import ExtraTreesRegressor, IsolationForest
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, IterativeImputer
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler
-from sklearn.feature_selection import SelectKBest
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler, PowerTransformer
+from sklearn.feature_selection import SelectKBest, SelectFromModel
 from sklearn.feature_selection import chi2, f_regression, mutual_info_regression
 from sklearn.svm import SVC, SVR
 from sklearn.feature_selection import RFE, RFECV
@@ -20,6 +20,7 @@ from statistics import mean
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.tree import ExtraTreeClassifier
 
 numpy.set_printoptions(threshold=sys.maxsize)
 
@@ -73,6 +74,7 @@ y_train = column_or_1d(y_train, warn=True)
 # scaler = MinMaxScaler()
 # scaler = MaxAbsScaler()
 # scaler = StandardScaler()
+# scaler = PowerTransformer()
 scaler = RobustScaler()
 x_train_new = scaler.fit_transform(x_train)
 cols = list(x_train.columns.values)
@@ -84,63 +86,69 @@ cv_score_list = []
 x_train_in = copy.deepcopy(x_train)
 for n in range(1):  # for select KBest
     #for a in numpy.arange(0.1, 1.5, 0.1):
-	    x_train = copy.deepcopy(x_train_in)
-	    feature_selector = SelectKBest(f_regression, k=250)
-	    #svc = SVC(kernel="linear", C=1)
-	    #feature_selector = RFE(estimator=svc,
-	    #                        n_features_to_select=240, step=1, verbose=3)
-	    # feature_selector = RFECV(estimator=svc,
-	    #                          min_features_to_select=1,
-	    #                          cv=10,
-	    #                          step=1,
-	    #                          n_jobs=3, verbose=3)
+        x_train = copy.deepcopy(x_train_in)
+        # feature_selector = SelectKBest(f_regression, k=250)
+        # svc = SVC(kernel="linear", C=1)
+        svc = ExtraTreeClassifier()
+        #feature_selector = RFE(estimator=svc,
+        #                        n_features_to_select=240, step=1, verbose=3)
+        clf = LassoCV(cv=10)
+        feature_selector = SelectFromModel(clf, threshold=0.25, max_features=300)
+        # feature_selector = RFECV(estimator=svc,
+        #                          min_features_to_select=1,
+        #                          cv=10,
+        #                          step=1,
+        #                          n_jobs=10, verbose=1)
+        # print("new_features size:", feature_selector.n_features_)
+        # print("grid scores:", feature_selector.grid_scores_)
 
-	    x_train_sel = feature_selector.fit_transform(x_train, y_train)
-	    mask = feature_selector.get_support()  # list of booleans
-	    new_features = []  # The list of your best features
+        x_train_sel = feature_selector.fit_transform(x_train, y_train)
+        mask = feature_selector.get_support()  # list of booleans
+        new_features = []  # The list of your best features
 
-	    for bool, feature in zip(mask, cols):
-	        if bool:
-	            new_features.append(feature)
-	    x_train = pd.DataFrame(data=x_train_sel, columns=new_features)
-	    # print(x_train)
-	    # print("new_features size:", len(new_features))
+        for bool, feature in zip(mask, cols):
+            if bool:
+                new_features.append(feature)
+        x_train = pd.DataFrame(data=x_train_sel, columns=new_features)
+        # print(x_train)
+        print("new_features size:", len(new_features))
 
-	    # TODO: try various regressors
-	    # SVR
-	    # Lasso
-	    # Ridge
-	    # TODO: CV to tune parameters
 
-		param_grid = [
-		    # {'n_estimators': [200, 250, 300, 350, 400, 500, 600, 700, 800, 1000],
-		    #  'min_samples_split': [2, 4, 5, 6, 7, 8, 9, 10, 12]}]
-			{'n_estimators': [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500],
-		     'min_samples_split': [2, 3, 4, 5, 6, 7, 8]}]
-	    reg = GradientBoostingRegressor()
-	    gs = GridSearchCV(reg,
-		                  param_grid=param_grid,
-		                  scoring=make_scorer(r2_score),
-		                  cv=10,
-		                n_jobs=-1, refit=True, return_train_score=True, verbose=1)
-	    gs.fit(x_train, y_train)
-	    print(gs.cv_results_)
-		print(gs.best_score_)
-	    print(gs.best_params_)
-	    reg = gs.best_estimator_
+        # TODO: try various regressors
+        # SVR
+        # Lasso
+        # Ridge
+        # TODO: CV to tune parameters
 
-	    #reg = GradientBoostingRegressor().fit(x_train, y_train)
-	    #print(reg.score(x_train, y_train))
+        param_grid = [
+            # {'n_estimators': [200, 250, 300, 350, 400, 500, 600, 700, 800, 1000],
+            #  'min_samples_split': [2, 4, 5, 6, 7, 8, 9, 10, 12]}]
+            {'n_estimators': [200],
+             'min_samples_split': [4]}]
+        reg = GradientBoostingRegressor()
+        gs = GridSearchCV(reg,
+                          param_grid=param_grid,
+                          scoring=make_scorer(r2_score),
+                          cv=10,
+                        n_jobs=-1, refit=True, return_train_score=True, verbose=1)
+        gs.fit(x_train, y_train)
+        print(gs.cv_results_)
+        print(gs.best_score_)
+        print(gs.best_params_)
+        reg = gs.best_estimator_
 
-	    # score = R2 score
-	    cv_results = cross_validate(reg, x_train, y_train, cv=10)
-	    # print('Number of features:', n)
-	    # print(sorted(cv_results.keys()))
-	    print("cross_validation scores:")
-	    print(cv_results['test_score'])
-	    print("mean of CV scores:")
-	    print(mean(cv_results['test_score']))
-	    cv_score_list.append([n, mean(cv_results['test_score'])])
+        #reg = GradientBoostingRegressor().fit(x_train, y_train)
+        #print(reg.score(x_train, y_train))
+
+        # score = R2 score
+        cv_results = cross_validate(reg, x_train, y_train, cv=10)
+        # print('Number of features:', n)
+        # print(sorted(cv_results.keys()))
+        print("cross_validation scores:")
+        print(cv_results['test_score'])
+        print("mean of CV scores:")
+        print(mean(cv_results['test_score']))
+        cv_score_list.append([n, mean(cv_results['test_score'])])
 
 cv_score_list.sort(key=sort, reverse=True)
 print(cv_score_list)
