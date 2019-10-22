@@ -8,8 +8,9 @@ from sklearn.linear_model import LinearRegression, LogisticRegression, LassoCV, 
 from sklearn.linear_model import Ridge
 from sklearn.metrics import make_scorer, r2_score
 from sklearn.model_selection import GridSearchCV, cross_validate
-from sklearn.ensemble import IsolationForest
-from sklearn.impute import SimpleImputer
+from sklearn.ensemble import ExtraTreesRegressor, IsolationForest
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import SimpleImputer, IterativeImputer
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2, f_regression, mutual_info_regression
@@ -39,6 +40,10 @@ x_train = x_train.drop('id', axis=1)
 # most_frequent
 # TODO: Maybe compute mean after splitting to validation and training set
 imputer = SimpleImputer(missing_values=numpy.nan, strategy='median')
+# est = ExtraTreesRegressor(n_estimators=10, random_state=0, max_features='sqrt', n_jobs=12, verbose=0)
+# imputer = IterativeImputer(estimator=est, max_iter=10, tol=0.001, n_nearest_features=None,
+#                            initial_strategy='median', imputation_order='ascending', verbose=2,
+#                            random_state=0)
 x_train_filled = imputer.fit_transform(x_train)
 x_train = pd.DataFrame(x_train_filled)
 
@@ -106,21 +111,24 @@ for n in range(1):  # for select KBest
 	    # Lasso
 	    # Ridge
 	    # TODO: CV to tune parameters
-	    
-	    param_grid = [
-		    {'n_estimators': [100, 150, 200, 250, 300],
-		     'min_samples_split': [0.1, 0.5, 1.0, 2, 4]}]
+
+		param_grid = [
+		    # {'n_estimators': [200, 250, 300, 350, 400, 500, 600, 700, 800, 1000],
+		    #  'min_samples_split': [2, 4, 5, 6, 7, 8, 9, 10, 12]}]
+			{'n_estimators': [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500],
+		     'min_samples_split': [2, 3, 4, 5, 6, 7, 8]}]
 	    reg = GradientBoostingRegressor()
 	    gs = GridSearchCV(reg,
-		                param_grid=param_grid,
-		                scoring=make_scorer(r2_score),
-		                cv=10,
-		                n_jobs=-1, refit=True, return_train_score=True)
+		                  param_grid=param_grid,
+		                  scoring=make_scorer(r2_score),
+		                  cv=10,
+		                n_jobs=-1, refit=True, return_train_score=True, verbose=1)
 	    gs.fit(x_train, y_train)
-	    print(gs.best_score_)
+	    print(gs.cv_results_)
+		print(gs.best_score_)
 	    print(gs.best_params_)
 	    reg = gs.best_estimator_
-	    
+
 	    #reg = GradientBoostingRegressor().fit(x_train, y_train)
 	    #print(reg.score(x_train, y_train))
 
