@@ -6,13 +6,15 @@
 # 2. I split the dataset into 5 folds, and at each iteration i keep 4 folds to train and 1 to validate.
 #    At each iteration i do feature selection of 200 features, generate a new model, train, validate it and test it at the test set.
 #    After these iterations, I keep the mean value for the 5 generated prediction sets.
-#    I don't know if it is correct :)))) 
+#    I don't know if it is correct :))))
 
 
 import pandas as pd
 import sys
 import numpy
 import copy
+
+from functools import partial
 
 from sklearn.utils import column_or_1d
 from sklearn.linear_model import LinearRegression, LogisticRegression, LassoCV, Lasso, SGDRegressor, ElasticNet
@@ -82,7 +84,8 @@ result= [137, 1018, 268, 797]  # these have come by 10 calls of IsolationForest
 outliers_predict = [1] * x_train.shape[0]
 for i in range(0, len(result)):
 	outliers_predict[result[i]] = -1
-	
+
+# majority for outliers once
 
 #TODO: take out only these outliers (result)
 #TODO: split dataset into training and feature-selection set
@@ -122,13 +125,15 @@ val_scores = []
 features = []
 test_df=[]
 
-kf = KFold(n_splits=5)
+# rkf = RepeatedKFold(n_splits=2, n_repeats=2, random_state=random_state)
+N = 10
+kf = KFold(n_splits=N, shuffle=False) # KFold(n_splits=5, random_state=None, shuffle=False)
 kf.get_n_splits(x_train)
-KFold(n_splits=5, random_state=None, shuffle=False)
 for train_index, test_index in kf.split(x_train):
+	# print("TRAIN:", train_index, "TEST:", test_index)
 	X_train_i, X_val_i = x_train.iloc[train_index], x_train.iloc[test_index]
 	Y_train_i, Y_val_i = y_train.iloc[train_index], y_train.iloc[test_index]
-	
+
 	feature_selector = SelectKBest(f_regression, k=200)
 	x_train_sel = feature_selector.fit_transform(X_train_i, Y_train_i)
 	mask = feature_selector.get_support()  # list of booleans
@@ -146,7 +151,7 @@ for train_index, test_index in kf.split(x_train):
 	print('train score:', train_s)
 
 	X_val_i = pd.DataFrame(data=X_val_i, columns=new_features)
-	
+
 	Y_pred = reg.predict(X_val_i)
 	test_s = r2_score(Y_val_i, Y_pred)
 	print('validation score:', test_s)
@@ -163,6 +168,7 @@ for train_index, test_index in kf.split(x_train):
 	df.insert(1, "y", y_new_test)
 	test_df.append(df)
 
+'''
 # Way 1
 f = set(features[0])
 for s in features[1:]:
@@ -171,6 +177,7 @@ features = list(f)
 print("----------------------------------------------------------------")
 print('features:', f)
 print(len(f))
+'''
 
 print("----------------------------------------------------------------")
 print(train_scores)
@@ -181,13 +188,22 @@ print(mean(val_scores))
 
 # Way 2
 print("----------------------------------------------------------------")
-print(test_df[0])
-df_concat = pd.concat((test_df[0], test_df[1], test_df[2], test_df[3], test_df[4]))
+chunks=[]
+for i in range (0, N):
+	 chunks.append(test_df[i])
+df_concat = pd.concat(chunks)
 by_row_index = df_concat.groupby(df_concat.index)
 df_means = by_row_index.mean()
-print (df_means)
 df_means.to_csv('solution2.csv', index=False)
 
+def weighted_mean(w, x):
+	d = {}
+	d['id'] = (x.id).mean()
+	d['y'] = numpy.average(x.y, weights=w)
+	return pd.Series(d, index=['id', 'y'])
+
+df_weighted_means = by_row_index.apply(partial(weighted_mean, val_scores))
+df_weighted_means.to_csv('solution2_weighted.csv', index=False)
 ###################################################################################
 '''
 # Way 1
