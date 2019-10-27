@@ -17,19 +17,19 @@ import copy
 from functools import partial
 
 from sklearn.utils import column_or_1d
-from sklearn.linear_model import LinearRegression, LogisticRegression, LassoCV, Lasso, SGDRegressor, ElasticNet
+from sklearn.linear_model import LinearRegression, LogisticRegression, LassoCV, Lasso, SGDRegressor, ElasticNet, LassoLarsCV
 from sklearn.linear_model import Ridge
 from sklearn.metrics import make_scorer, r2_score
 from sklearn.model_selection import GridSearchCV, cross_validate
-from sklearn.ensemble import ExtraTreesRegressor, IsolationForest
+from sklearn.ensemble import ExtraTreesRegressor, IsolationForest, AdaBoostRegressor
 from sklearn.impute import SimpleImputer
 #from sklearn.experimental import enable_iterative_imputer
 #from sklearn.impute import IterativeImputer
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler, PowerTransformer
-from sklearn.feature_selection import SelectKBest, SelectFromModel
+from sklearn.feature_selection import SelectKBest, SelectFromModel, VarianceThreshold
 from sklearn.feature_selection import chi2, f_regression, mutual_info_regression
 from sklearn.svm import SVC, SVR
-from sklearn.feature_selection import RFE, RFECV
+from sklearn.feature_selection import RFE, RFECV, SelectFwe
 from statistics import mean
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel
@@ -39,10 +39,11 @@ from sklearn.tree import ExtraTreeClassifier
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.cluster import DBSCAN
 
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, RepeatedKFold, StratifiedKFold
 
 numpy.set_printoptions(threshold=sys.maxsize)
 
+res = open("results", "w")
 
 def sort(val):
     return val[1]  # sort using the 2nd element
@@ -120,55 +121,68 @@ x_test_scaled = scaler.fit_transform(x_test)
 cols = list(x_test.columns.values)
 x_test = pd.DataFrame(data=x_test_scaled, columns=cols)
 
-train_scores = []
-val_scores = []
-features = []
-test_df=[]
-
-# rkf = RepeatedKFold(n_splits=2, n_repeats=2, random_state=random_state)
 N = 10
-kf = KFold(n_splits=N, shuffle=False) # KFold(n_splits=5, random_state=None, shuffle=False)
-kf.get_n_splits(x_train)
-for train_index, test_index in kf.split(x_train):
-	# print("TRAIN:", train_index, "TEST:", test_index)
-	X_train_i, X_val_i = x_train.iloc[train_index], x_train.iloc[test_index]
-	Y_train_i, Y_val_i = y_train.iloc[train_index], y_train.iloc[test_index]
+# kf = StratifiedKFold(n_splits=N, random_state=42, shuffle=True)
+kf = KFold(n_splits=N, shuffle=False, random_state=42)
+for r in [ GradientBoostingRegressor(n_estimators = 200, min_samples_split = 4)
+		 , SVR(kernel="rbf", degree=3, gamma=0.01, coef0=0.0, tol=0.001, C=100, epsilon=0.1, shrinking=True, cache_size=200, verbose=False, max_iter=-1)
+		#  , LassoCV(eps=1e-6, n_alphas=100, cv=3, max_iter=10000, n_jobs=10)
+		#  , LassoLarsCV(cv=3, max_iter=10000, n_jobs=10)
+		#  , AdaBoostRegressor(LassoCV(eps=1e-6, n_alphas=100, cv=3, max_iter=10000, n_jobs=10))
+		#  , AdaBoostRegressor(LassoLarsCV(cv=3, max_iter=10000, n_jobs=10))
+		 ]:
 
-	feature_selector = SelectKBest(f_regression, k=200)
-	x_train_sel = feature_selector.fit_transform(X_train_i, Y_train_i)
-	mask = feature_selector.get_support()  # list of booleans
-	new_features = []  # The list of your best features
+	train_scores = []
+	val_scores = []
+	features = []
+	test_df=[]
 
-	for bool, feature in zip(mask, cols):
-    		if bool:
-	        	new_features.append(feature)
+	print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+	for train_index, test_index in kf.split(x_train, y_train):
+		X_train_i, X_val_i = x_train.iloc[train_index], x_train.iloc[test_index]
+		Y_train_i, Y_val_i = y_train.iloc[train_index], y_train.iloc[test_index]
 
-	features.append(new_features)
-	X_train_i = pd.DataFrame(data=x_train_sel, columns=new_features)
+		feature_selector = SelectKBest(f_regression, k=200)
+		x_train_sel = feature_selector.fit_transform(X_train_i, Y_train_i.y) # .ravel())
+		mask = feature_selector.get_support()  # list of booleans
+		new_features = []  # The list of your best features
 
-	reg = GradientBoostingRegressor(n_estimators = 200, min_samples_split = 4).fit(X_train_i, Y_train_i)
-	train_s = reg.score(X_train_i, Y_train_i)
-	print('train score:', train_s)
+		for bool, feature in zip(mask, cols):
+				if bool:
+					new_features.append(feature)
 
-	X_val_i = pd.DataFrame(data=X_val_i, columns=new_features)
+		features.append(new_features)
+		X_train_i = pd.DataFrame(data=x_train_sel, columns=new_features)
 
-	Y_pred = reg.predict(X_val_i)
-	test_s = r2_score(Y_val_i, Y_pred)
-	print('validation score:', test_s)
+		reg = r.fit(X_train_i, Y_train_i.y)
+		train_s = reg.score(X_train_i, Y_train_i.y)
+		print('train score:', train_s)
 
-	train_scores.append(train_s)
-	val_scores.append(test_s)
+		X_val_i = pd.DataFrame(data=X_val_i, columns=new_features)
 
-	# Way 2
-	X_new_test_i = pd.DataFrame(data=x_test, columns=new_features)
-	y_new_test = reg.predict(X_new_test_i)
+		Y_pred = reg.predict(X_val_i)
+		test_s = r2_score(Y_val_i, Y_pred)
+		print('validation score:', test_s)
 
-	Id = test_set['id']
-	df = pd.DataFrame(Id)
-	df.insert(1, "y", y_new_test)
-	test_df.append(df)
+		train_scores.append(train_s)
+		val_scores.append(test_s)
+
+	# print("k in SelectKBest: ", k, file=res)
+	print(val_scores, file=res)
+	print("mean: ", mean(val_scores), file=res)
+	print("std: ", numpy.std(val_scores), file=res)
+	print("----------------------------------------------------------------", file=res)
 
 '''
+		# Way 2
+		X_new_test_i = pd.DataFrame(data=x_test, columns=new_features)
+		y_new_test = reg.predict(X_new_test_i)
+
+		Id = test_set['id']
+		df = pd.DataFrame(Id)
+		df.insert(1, "y", y_new_test)
+		test_df.append(df)
+
 # Way 1
 f = set(features[0])
 for s in features[1:]:
@@ -177,15 +191,14 @@ features = list(f)
 print("----------------------------------------------------------------")
 print('features:', f)
 print(len(f))
-'''
 
 print("----------------------------------------------------------------")
 print(train_scores)
 print(mean(train_scores))
 print("----------------------------------------------------------------")
-print(val_scores)
-print(mean(val_scores))
+'''
 
+'''
 # Way 2
 print("----------------------------------------------------------------")
 chunks=[]
@@ -205,7 +218,7 @@ def weighted_mean(w, x):
 df_weighted_means = by_row_index.apply(partial(weighted_mean, val_scores))
 df_weighted_means.to_csv('solution2_weighted.csv', index=False)
 ###################################################################################
-'''
+
 # Way 1
 X_train = pd.DataFrame(data=x_train, columns=features)
 
